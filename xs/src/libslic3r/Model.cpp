@@ -302,6 +302,12 @@ Model::_arrange(const Pointfs &sizes, coordf_t dist, const BoundingBoxf* bb, Poi
 bool
 Model::arrange_objects(coordf_t dist, const BoundingBoxf* bb)
 {
+    std::vector<BoundingHull> shapes;
+    for(const ModelObject* o : this->objects){
+        for(size_t i = 0; i< o->instances.size(); ++i){
+            shapes.push_back(o->instance_bounding_hull(i));
+        }
+    }
     // get the (transformed) size of each instance so that we take
     // into account their different transformations when packing
     Pointfs instance_sizes;
@@ -642,6 +648,17 @@ ModelObject::raw_bounding_box() const
     return bb;
 }
 
+// TODO: mhady: create instance_bounding_hull here to reterun specific bounding hull for each instance
+BoundingHull
+ModelObject::instance_bounding_hull(size_t instance_idx) const{
+        BoundingHull bh;
+        for (ModelVolumePtrs::const_iterator v = this->volumes.begin(); v != this->volumes.end(); ++v) {
+            if ((*v)->modifier) continue;
+            bh.merge(this->instances[instance_idx]->transform_mesh_bounding_hull(&(*v)->mesh));
+            bh.update_hull();
+        }
+        return bh;
+}
 // this returns the bounding box of the *transformed* given instance
 BoundingBoxf3
 ModelObject::instance_bounding_box(size_t instance_idx) const
@@ -1093,6 +1110,48 @@ ModelInstance::transform_mesh(TriangleMesh* mesh, bool dont_translate) const
 
 }
 
+//mhady: TODO: create a transform_mesh_bounding_hull here
+std::vector<Pointf> ModelInstance::transform_mesh_bounding_hull(const TriangleMesh* mesh ) const{
+// rotate around mesh origin
+        double c = cos(this->rotation);
+        double s = sin(this->rotation);
+        double cx = cos(this->x_rotation);
+        double sx = sin(this->x_rotation);
+        double cy = cos(this->y_rotation);
+        double sy = sin(this->y_rotation);
+        std::vector<Pointf> points;
+        for (int i = 0; i < mesh->stl.stats.number_of_facets; ++ i) {
+            const stl_facet &facet = mesh->stl.facet_start[i];
+            for (int j = 0; j < 3; ++ j) {
+                stl_vertex v = facet.vertex[j];
+                double xold = v.x;
+                double yold = v.y;
+                double zold = v.z;
+                // Rotation around x axis.
+                v.z = float(sx * yold + cx * zold);
+                yold = v.y = float(cx * yold - sx * zold);
+                zold = v.z;
+                // Rotation around y axis.
+                v.x = float(cy * xold + sy * zold);
+                v.z = float(-sy * xold + cy * zold);
+                xold = v.x;
+                // Rotation around z axis.
+                v.x = float(c * xold - s * yold);
+                v.y = float(s * xold + c * yold);
+                v.x *= float(this->scaling_factor * this->scaling_vector.x);
+                v.y *= float(this->scaling_factor * this->scaling_vector.y);
+                v.z *= float(this->scaling_factor * this->scaling_vector.z);
+//                if (!dont_translate) {
+                    v.x += this->offset.x;
+                    v.y += this->offset.y;
+                    if (this->y_rotation || this->x_rotation)
+                        v.z += -(mesh->stl.stats.min.z);
+//                }
+                points.push_back(Pointf(v.x,v.y));
+            }
+        }
+        return points;
+}
 BoundingBoxf3 ModelInstance::transform_mesh_bounding_box(const TriangleMesh* mesh, bool dont_translate) const
 {
     // rotate around mesh origin

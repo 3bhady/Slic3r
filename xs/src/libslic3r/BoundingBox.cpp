@@ -1,4 +1,5 @@
 #include "BoundingBox.hpp"
+#include "Geometry.hpp"
 #include <algorithm>
 
 namespace Slic3r {
@@ -268,4 +269,26 @@ BoundingBoxBase<PointClass>::contains(const PointClass &point) const
 template bool BoundingBoxBase<Point>::contains(const Point &point) const;
 template bool BoundingBoxBase<Pointf>::contains(const Pointf &point) const;
 
+//BoundingHull::BoundingHull(const std::vector<Pointf> &pointsf): BoundingBoxBase<Pointf>(pointsf){
+//    Points points = to_points<Pointf>(pointsf);
+//    for(int i = 0 ;i <points.size(); i++){
+//        printf("%d\n",points[i].x );
+//    }
+//}
+void BoundingHull::merge(std::vector<Pointf> points){
+    this->original_points.insert(this->original_points.end(), points.begin(), points.end());
 }
+void BoundingHull::merge(BoundingHull bh){
+    this->original_points.insert(this->original_points.end(), bh.original_points.begin(), bh.original_points.end());
+}
+void BoundingHull::update_hull() {
+    Points points;
+    for(int i = 0; i< this->original_points.size(); i++){
+        points.push_back(Point(ceil(this->original_points[i].x),ceil(this->original_points[i].y)));
+    }
+    this->hull = Slic3r::Geometry::convex_hull(points);
+    printf("hell yeah!");
+}
+}
+
+

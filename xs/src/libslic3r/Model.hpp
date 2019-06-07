@@ -132,6 +132,8 @@ class Model
     /// \return BoundingBoxf3 a bounding box object.
     BoundingBoxf3 bounding_box() const;
 
+    BoundingHull bounding_hull() const;
+
     /// Repair the ModelObjects of the current Model.
     /// This function calls repair function on each TriangleMesh of each model object volume
     void repair();
@@ -449,6 +451,8 @@ class ModelObject
 
     /// Destructor
     ~ModelObject();
+
+    BoundingHull instance_bounding_hull(size_t instance_idx) const;
 };
 
 /// An object STL, or a modifier volume, over which a different set of parameters shall be applied.
@@ -550,6 +554,9 @@ class ModelInstance
     /// \param dont_translate bool whether to translate the bounding box or not
     /// \return BoundingBoxf3 the bounding box after transformation
     BoundingBoxf3 transform_mesh_bounding_box(const TriangleMesh* mesh, bool dont_translate = false) const;
+
+
+    std::vector<Pointf> transform_mesh_bounding_hull(const TriangleMesh *mesh) const;
 
     /// Transform an external bounding box.
     /// \param bbox BoundingBoxf3 the bounding box to be transformed

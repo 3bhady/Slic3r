@@ -104,7 +104,18 @@ inline bool operator!=(const BoundingBoxBase<VT> &bb1, const BoundingBoxBase<VT>
 {
     return !(bb1 == bb2);
 }
+class BoundingHull : public BoundingBoxBase<Pointf> {
+    public:
+        Polygon hull;
+    std::vector<Pointf> original_points;
+    BoundingHull() : BoundingBoxBase<Pointf>() {};
+//    BoundingHull(const std::vector<Pointf> &pointsf);
+    void merge(std::vector<Pointf> points);
+    void merge(BoundingHull bh);
+    void update_hull();
 
+};
 }
+
 
 #endif
