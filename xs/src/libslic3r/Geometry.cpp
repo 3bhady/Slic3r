@@ -648,7 +648,66 @@ arrange(size_t total_parts, const Pointf &part_size, coordf_t dist, const Boundi
     return true;
 }
 
-void
+Polygon no_fit_polygon(Polygon A, Polygon B) {
+    Polygon nfp;
+    if(A.points.size()<3 || B.points.size()<3 )
+        return nfp;
+
+    // Make sure that A and B are both anti-clockwise
+    // TODO: see if this would be taken care of before calling the function
+    A.make_counter_clockwise();
+    B.make_counter_clockwise();
+
+    // Translate the polygon B such that it's highest point is at A's lowest point
+    // that way we can make sure that B will be touching A without intersection
+
+    // First we get A's bottom point
+    Point min_a(A.points[0]);
+    int min_a_index = 0;
+    for(int i = 1;i<A.points.size();++i){
+        if(min_a.y<A.points[i].y){
+            min_a = A.points[i];
+            min_a_index=i;
+        }
+    }
+    // Now we get B's Top point
+    Point max_b(B.points[0]);
+    int max_b_index = 0;
+    for(int i = 1;i<B.points.size();++i){
+        if(max_b.y<B.points[i].y){
+            max_b = B.points[i];
+            max_b_index=i;
+        }
+    }
+    // This offset will be added to every point in B to translate it to A's bottom point.
+    Point offset(min_a.x-max_b.x,min_a.y-max_b.y);
+
+    // This point is also the first point in the nfp.
+    nfp.append(min_a);
+
+    //while(true){ // iterate over all possible starting points that are not covered in the current nfp
+        // First we get the touching edges and their type
+        /* We have three cases here:
+        * 1) Both edges touch at a single vertex. ( I think this single vertex belongs to each polygon )
+        * 2) A vertex of an edge in B touches the middle of an edge in A.
+        * 3) A vertex of an edge in A touches the middle of an edge in B.
+        * These determine how we're gonna derive the translation vectors.
+        * */
+
+        // Generate the translation vectors
+
+        // Reject vectors that will cause intersection
+
+        // Calculate the maximum distance we can slide alongside each vector
+        // polygon_slide_distance( A, B, translation_vector );
+        // Get the maximum translation vector and update the current offset to translate B by that
+
+    //}
+
+    return Polygon();
+}
+
+        void
 MedialAxis::build(ThickPolylines* polylines)
 {
     construct_voronoi(this->lines.begin(), this->lines.end(), &this->vd);

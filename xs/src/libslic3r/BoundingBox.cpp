@@ -287,7 +287,6 @@ void BoundingHull::update_hull() {
         points.push_back(Point(ceil(this->original_points[i].x),ceil(this->original_points[i].y)));
     }
     this->hull = Slic3r::Geometry::convex_hull(points);
-    printf("hell yeah!");
 }
 }
 

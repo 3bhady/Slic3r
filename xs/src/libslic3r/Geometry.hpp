@@ -15,6 +15,11 @@ namespace Slic3r { namespace Geometry {
 
 Polygon convex_hull(Points points);
 Polygon convex_hull(const Polygons &polygons);
+
+// Returns a NFP for the two polygons A and B
+// A is the stationary polygon and
+// B is the orbiting polygon
+Polygon no_fit_polygon(Polygon A, Polygon B);
 void chained_path(const Points &points, std::vector<Points::size_type> &retval, Point start_near);
 void chained_path(const Points &points, std::vector<Points::size_type> &retval);
 template<class T> void chained_path_items(Points &points, T &items, T &retval);

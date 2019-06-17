@@ -1,7 +1,7 @@
 cmake_minimum_required (VERSION 3.9)
 project (slic3r)
 
-option(Enable_GUI "Use the wxWidgets code in slic3r.cpp" OFF)
+option(Enable_GUI "Use the wxWidgets code in slic3r.cpp" ON)
 option(GUI_BUILD_TESTS "Build tests for Slic3r GUI." ON)
 option(SLIC3R_BUILD_TESTS "Build tests for libslic3r." ON)
 option(SLIC3R_STATIC "Build and link Slic3r statically." ON)
