@@ -31,6 +31,7 @@ using Point3s = std::vector<Point3>;
 class Point
 {
     public:
+    bool marked = false;
     coord_t x;
     coord_t y;
     constexpr Point(coord_t _x = 0, coord_t _y = 0): x(_x), y(_y) {};

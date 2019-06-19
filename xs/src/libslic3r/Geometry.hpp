@@ -13,13 +13,22 @@ using boost::polygon::voronoi_diagram;
 
 namespace Slic3r { namespace Geometry {
 
+// Given some points this function returns the bounding convex hull for these points
 Polygon convex_hull(Points points);
+
+// Given vector of polygons this function returns the convex hull for all the points in these polygons combined
 Polygon convex_hull(const Polygons &polygons);
 
 // Returns a NFP for the two polygons A and B
 // A is the stationary polygon and
 // B is the orbiting polygon
 Polygon no_fit_polygon(Polygon A, Polygon B);
+
+// Returns true if the two arguments are almost equal with tolerance due to floating point accuracy
+bool almost_equal(Point a, Point b, double tolerance=10e-8);
+bool almost_equal(double x, double y, double tolerance = 10e-8);
+
+
 void chained_path(const Points &points, std::vector<Points::size_type> &retval, Point start_near);
 void chained_path(const Points &points, std::vector<Points::size_type> &retval);
 template<class T> void chained_path_items(Points &points, T &items, T &retval);
@@ -29,6 +38,9 @@ template<class T> double area(const std::vector<T> &vector);
 double rad2deg(double angle);
 double rad2deg_dir(double angle);
 double deg2rad(double angle);
+
+// Returns true if the two points are within the given distance
+bool within_distance(Point p1, Point p2, double distance);
 
 /// Find the center of the circle corresponding to the vector of Points as an arc.
 Point circle_taubin_newton(const Points& input, size_t cycles = 20);

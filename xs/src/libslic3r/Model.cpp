@@ -305,6 +305,8 @@ Model::arrange_objects(coordf_t dist, const BoundingBoxf* bb)
     std::vector<BoundingHull> shapes;
     for(const ModelObject* o : this->objects){
         for(size_t i = 0; i< o->instances.size(); ++i){
+            // TODO: increase each shape's size so that we could keep a minimum distance between objects
+            // call offset function.
             shapes.push_back(o->instance_bounding_hull(i));
         }
     }

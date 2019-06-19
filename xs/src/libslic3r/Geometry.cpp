@@ -680,31 +680,173 @@ Polygon no_fit_polygon(Polygon A, Polygon B) {
         }
     }
     // This offset will be added to every point in B to translate it to A's bottom point.
-    Point offset(min_a.x-max_b.x,min_a.y-max_b.y);
+    //Point offset(min_a - max_b);
+    Point offset; // in SVGNest this is startOffset or startPoint
+    // TODO: If we're looking for interior NFP:
+    // offset = search_start_point(A, B, inside = true);
+    // else: offset is the min_a point
+    offset = min_a-max_b;
+    while(true){ // iterate over all possible starting points that are not covered in the current nfp
 
-    // This point is also the first point in the nfp.
-    nfp.append(min_a);
+        // We're creating the NFP with the first point in the B polygon
+        nfp.append(B.points[0]+offset);
 
-    //while(true){ // iterate over all possible starting points that are not covered in the current nfp
-        // First we get the touching edges and their type
-        /* We have three cases here:
-        * 1) Both edges touch at a single vertex. ( I think this single vertex belongs to each polygon )
-        * 2) A vertex of an edge in B touches the middle of an edge in A.
-        * 3) A vertex of an edge in A touches the middle of an edge in B.
-        * These determine how we're gonna derive the translation vectors.
-        * */
+        // This will be moving with B and we'll check if it returns to start point
+        // then we're finished with the NFP from the specified start point
+        Point reference(offset);
+        int counter = 0; // Used for preventing infinite loop
 
-        // Generate the translation vectors
 
-        // Reject vectors that will cause intersection
+        while(counter < 10*(A.points.size() + B.points.size())) {
+            // This vector is used to hold the type of the pair of edges
+            std::vector<int> type;
+            // This vector holds the indices of the pair of edges which are touching each other in polygons A and B
+            Points edges_indices;
 
-        // Calculate the maximum distance we can slide alongside each vector
-        // polygon_slide_distance( A, B, translation_vector );
-        // Get the maximum translation vector and update the current offset to translate B by that
+            // First we get the touching edges and their type
+            /* We have three cases here:
+            * 1) Both edges touch at a single vertex. ( I think this single vertex belongs to each polygon )
+            * 2) A vertex of an edge in B touches the middle of an edge in A.
+            * 3) A vertex of an edge in A touches the middle of an edge in B.
+            * These determine how we're gonna derive the translation vectors.
+            * */
+            for(int i = 0; i < A.points.size(); ++i){
+                // this is to close the loop to connect last vertex to the first one creating the last edge
+                int next_i = i == (A.points.size()-1) ? 0 : i+1;
+                for(int j = 0; j < B.points.size(); ++j){
+                    int next_j = j == (B.points.size()-1)? 0 : j+1;
+//                    Point b1(B.points[j]+offset);
+//                    Point b2(B.points[next_j]+offset);
+                    if(almost_equal(A.points[i],B.points[j]+offset)){
+                        // First case: both polygons share a common vertex at either the start or the end of the current edges
+                        type.push_back(0);
+                        edges_indices.push_back(Point(i,j));
+                    }else if(almost_equal((B.points[j]+offset).distance_to(Line(A.points[i],A.points[next_i])),0)){
+                        // Second case: vertex of B's edge is in the middle of A's edge
+                        type.push_back(1);
+                        edges_indices.push_back(Point(next_i,j));
+                    }else if(almost_equal(A.points[i].distance_to(Line(B.points[i]+offset,B.points[next_j]+offset)),0)){
+                        // Second case: vertex of B's edge is in the middle of A's edge
+                        type.push_back(2);
+                        edges_indices.push_back(Point(i,next_j));
+                    }
+                }
 
-    //}
+            }
+
+            // Generate the translation vectors
+            struct translation_vector{
+               Point point, start, end;
+            };
+            std::vector<translation_vector> translation_vectors;
+            for(int i = 0; i < edges_indices.size(); ++i){
+                A.points[edges_indices[i].x].marked = true;
+                Point vertex_A = A.points[edges_indices[i].x];
+
+                // Adjacent A vertices
+                int prev_A_index = edges_indices[i].x-1;
+                int next_A_index = edges_indices[i].x+1;
+                // Loop back
+                prev_A_index = (prev_A_index < 0) ? A.points.size()-1 : prev_A_index;
+                next_A_index = (prev_A_index >= A.points.size()) ? 0 : next_A_index;
+
+                Point prev_A = A.points[prev_A_index];
+                Point next_A = A.points[next_A_index];
+
+                Point vertex_B = B.points[edges_indices[i].y];
+
+                int prev_B_index = edges_indices[i].y-1;
+                int next_B_index = edges_indices[i].y+1;
+                // Loop back
+                prev_B_index = (prev_B_index < 0) ? B.points.size()-1 : prev_B_index;
+                next_B_index = (prev_B_index >= B.points.size()) ? 0 : next_B_index;
+
+                Point prev_B = B.points[prev_B_index];
+                Point next_B = B.points[next_B_index];
+
+                if(type[i] == 0){
+                    translation_vector vA1, vA2, vB1, vB2;
+
+                    vA1.point = Point(prev_A-vertex_A);
+                    vA1.start = vertex_A;
+                    vA1.end = prev_A;
+
+                    vA2.point = Point(next_A - vertex_A);
+                    vA2.start = vertex_A;
+                    vA2.end = next_A;
+
+                    // B vectors are inverted to achieve correct sliding
+                    vB1.point = Point(vertex_B - prev_B);
+                    vB1.start = prev_B;
+                    vB1.end = vertex_B;
+
+                    vB2.point = Point(vertex_B - next_B);
+                    vB2.start = next_B;
+                    vB2.end = vertex_B;
+
+                    translation_vectors.push_back(vA1);
+                    translation_vectors.push_back(vA2);
+                    translation_vectors.push_back(vB1);
+                    translation_vectors.push_back(vB2);
+
+                }else if(type[i] == 1){
+                    // This is the second case were we use the stationary polygon's edge to get the transition vector
+                    translation_vector vA1, vA2;
+
+                    vA1.point = vertex_A - vertex_B + offset;
+                    vA1.start = prev_A;
+                    vA1.end = vertex_A;
+
+                    // I don't think that we need this??
+                    vA2.point = prev_A - vertex_B + offset;
+                    vA2.start = vertex_A;
+                    vA2.end = prev_A;
+                    translation_vectors.push_back(vA1);
+                    translation_vectors.push_back(vA2);
+
+                }else if(type[i] == 2){
+                    translation_vector vB1, vB2;
+
+                    vB1.point = vertex_A - vertex_B + offset;
+                    vB1.start = prev_B;
+                    vB1.end = vertex_B;
+
+                    // We don't need this also I think?
+                    vB2.point = vertex_A - prev_B + offset;
+                    vB2.start = vertex_B;
+                    vB2.end = prev_B;
+
+                    translation_vectors.push_back(vB1);
+                    translation_vectors.push_back(vB2);
+                }
+            }
+            // Reject vectors that will cause intersection
+
+
+            // Calculate the maximum distance we can slide alongside each vector
+            // polygon_slide_distance( A, B, translation_vector );
+            // Get the maximum translation vector and update the current offset to translate B by that
+        }
+
+
+
+        // If no more new start_offset
+        break;
+    }
 
     return Polygon();
+}
+
+bool within_distance(Point p1, Point p2, double distance) {
+    double dx = p1.x - p2.x;
+    double dy = p1.y - p2.y;
+    return ((dx*dx + dy*dy)< distance*distance);
+}
+bool almost_equal(double x, double y, double tolerance){
+    return abs(x-y)<=tolerance;
+}
+bool almost_equal(Point a, Point b, double tolerance) {
+    return ((a.x-b.x <= tolerance) && (a.y-b.y <= tolerance));
 }
 
         void
