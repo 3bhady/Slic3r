@@ -28,7 +28,22 @@ Polygon no_fit_polygon(Polygon A, Polygon B);
 bool almost_equal(Point a, Point b, double tolerance=10e-8);
 bool almost_equal(double x, double y, double tolerance = 10e-8);
 
+struct TranslationVector{
+    Point dir, start, end;
+    Pointf normalize(){
+        // TODO: could we use normalize from point her?? return dir.normalize()
+        if(almost_equal(dir.x*dir.x + dir.y*dir.y, 1)){
+            return Pointf(dir.x, dir.y);
+        }
+        double len = sqrt(dir.x*dir.x + dir.y*dir.y);
+        double inverse = 1/len;
+        return Pointf(dir.x*inverse, dir.y*inverse);
+    }
+};
 
+double polygon_slide_distance(Polygon A, Polygon B, Point offset, TranslationVector translationVector);
+double segment_distance( Point A, Point B, Point E, Point F, Point direction );
+double point_distance( Point p, Point s1, Point s2, Pointf normal, bool infinite = false );
 void chained_path(const Points &points, std::vector<Points::size_type> &retval, Point start_near);
 void chained_path(const Points &points, std::vector<Points::size_type> &retval);
 template<class T> void chained_path_items(Points &points, T &items, T &retval);

@@ -648,6 +648,225 @@ arrange(size_t total_parts, const Pointf &part_size, coordf_t dist, const Boundi
     return true;
 }
 
+double point_distance( Point p, Point s1, Point s2, Pointf normal, bool infinite ){
+
+    // TODO: normal might need to be normalized ( check translation vector )
+    Pointf dir(normal.y, -normal.x);
+
+
+    double pdot = p.x*dir.x + p.y*dir.y;
+    double s1dot = s1.x*dir.x + s1.y*dir.y;
+    double s2dot = s2.x*dir.x + s2.y*dir.y;
+
+    double pdotnorm = p.x*normal.x + p.y*normal.y;
+    double s1dotnorm = s1.x*normal.x + s1.y*normal.y;
+    double s2dotnorm = s2.x*normal.x + s2.y*normal.y;
+
+    if(!infinite){
+        if (((pdot<s1dot || almost_equal(pdot, s1dot)) && (pdot<s2dot || almost_equal(pdot, s2dot))) || ((pdot>s1dot || almost_equal(pdot, s1dot)) && (pdot>s2dot || almost_equal(pdot, s2dot)))){
+            return -1; // dot doesn't collide with segment, or lies directly on the vertex
+        }
+        if ((almost_equal(pdot, s1dot) && almost_equal(pdot, s2dot)) && (pdotnorm>s1dotnorm && pdotnorm>s2dotnorm)){
+            return fmin(pdotnorm - s1dotnorm, pdotnorm - s2dotnorm);
+        }
+        if ((almost_equal(pdot, s1dot) && almost_equal(pdot, s2dot)) && (pdotnorm<s1dotnorm && pdotnorm<s2dotnorm)){
+            return -fmin(s1dotnorm-pdotnorm, s2dotnorm-pdotnorm);
+        }
+    }
+
+    return -(pdotnorm - s1dotnorm + (s1dotnorm - s2dotnorm)*(s1dot - pdot)/(s1dot - s2dot));
+}
+
+double segment_distance(Point A, Point B, Point E, Point F, Pointf direction) {
+    Pointf normal(direction.y, -direction.x);
+    Pointf reverse(-direction.x, -direction.y);
+
+
+    double dotA = A.x*normal.x + A.y*normal.y;
+    double dotB = B.x*normal.x + B.y*normal.y;
+    double dotE = E.x*normal.x + E.y*normal.y;
+    double dotF = F.x*normal.x + F.y*normal.y;
+
+    double crossA = A.x*direction.x + A.y*direction.y;
+    double crossB = B.x*direction.x + B.y*direction.y;
+    double crossE = E.x*direction.x + E.y*direction.y;
+    double crossF = F.x*direction.x + F.y*direction.y;
+
+    double ABmin = fmin(dotA,dotB);//? dotA : dotB;
+    double ABmax = fmax(dotA,dotB);// ? dotA : dotB;
+
+    double EFmax = fmax(dotE,dotF);//? dotE : dotF;
+    double EFmin = fmax(dotE, dotF);//? dotE : dotF;
+
+    // segments that will merely touch at one point
+    if(almost_equal(ABmax, EFmin ) || almost_equal(ABmin, EFmax )){
+        return -1;
+    }
+    // segments miss eachother completely
+    if(ABmax < EFmin || ABmin > EFmax){
+        return -1;
+    }
+
+    double overlap;
+
+    if((ABmax > EFmax && ABmin < EFmin) || (EFmax > ABmax && EFmin < ABmin)){
+        overlap = 1;
+    }
+    else{
+        double minMax =  fmin(ABmax , EFmax);//? ABmax : EFmax;
+        double maxMin = fmax(ABmin ,  EFmin);//? ABmin : EFmin;
+
+        double maxMax = fmax(ABmax, EFmax);
+        double minMin = fmin(ABmin, EFmin);
+
+        overlap = (minMax-maxMin)/(maxMax-minMin);
+    }
+
+    double crossABE = (E.y - A.y) * (B.x - A.x) - (E.x - A.x) * (B.y - A.y);
+    double crossABF = (F.y - A.y) * (B.x - A.x) - (F.x - A.x) * (B.y - A.y);
+
+    // lines are colinear
+    if(almost_equal(crossABE,0) && almost_equal(crossABF,0)){
+
+        Pointf ABnorm ( B.y-A.y, A.x-B.x);
+        Pointf EFnorm ( F.y-E.y,  E.x-F.x);
+
+        double ABnormlength = sqrt(ABnorm.x*ABnorm.x + ABnorm.y*ABnorm.y);
+        ABnorm.x /= ABnormlength;
+        ABnorm.y /= ABnormlength;
+
+        double EFnormlength = sqrt(EFnorm.x*EFnorm.x + EFnorm.y*EFnorm.y);
+        EFnorm.x /= EFnormlength;
+        EFnorm.y /= EFnormlength;
+
+        // segment normals must point in opposite directions
+        if(fabs(ABnorm.y * EFnorm.x - ABnorm.x * EFnorm.y) < epsilon && ABnorm.y * EFnorm.y + ABnorm.x * EFnorm.x < 0){
+            // normal of AB segment must point in same direction as given direction vector
+            double normdot = ABnorm.y * direction.y + ABnorm.x * direction.x;
+            // the segments merely slide along eachother
+            if(almost_equal(normdot,0)){
+                return -1;
+            }
+            if(normdot < 0){
+                return 0;
+            }
+        }
+        return -1;
+    }
+
+    std::vector<double> distances;
+    // coincident points
+    if(almost_equal(dotA, dotE)){
+        distances.push_back(crossA-crossE);
+    }
+    else if(almost_equal(dotA, dotF)){
+        distances.push_back(crossA-crossF);
+    }
+    else if(dotA > EFmin && dotA < EFmax){
+        bool collide = false;
+        double d = point_distance(A,E,F,reverse);
+        if( d != -1 && almost_equal(d, 0)){ //  A currently touches EF, but AB is moving away from EF
+            double dB = point_distance(B,E,F,reverse, true);
+            if(dB < 0 || almost_equal(dB*overlap,0)){
+                d = -1;
+            }
+        }
+        if(d != -1){
+            distances.push_back(d);
+        }
+    }
+
+
+    if(almost_equal(dotB, dotE)){
+        distances.push_back(crossB-crossE);
+    }
+    else if(almost_equal(dotB, dotF)){
+        distances.push_back(crossB-crossF);
+    }
+    else if(dotB > EFmin && dotB < EFmax){
+        double d = point_distance(B,E,F,reverse);
+
+        if(d != -1 && almost_equal(d, 0)){ // crossA>crossB A currently touches EF, but AB is moving away from EF
+            double dA = point_distance(A,E,F,reverse,true);
+            if(dA < 0 || almost_equal(dA*overlap,0)){
+                d = -1;
+            }
+        }
+        if(d != -1){
+            distances.push_back(d);
+        }
+    }
+    if(dotE > ABmin && dotE < ABmax){
+        double d = point_distance(E,A,B,direction);
+        if(d != -1 && almost_equal(d, 0)){ // crossF<crossE A currently touches EF, but AB is moving away from EF
+            double dF = point_distance(F,A,B,direction, true);
+            if(dF < 0 || almost_equal(dF*overlap,0)){
+                d = -1;
+            }
+        }
+        if(d != -1){
+            distances.push_back(d);
+        }
+    }
+
+
+
+    if(dotF > ABmin && dotF < ABmax){
+        double d = point_distance(F,A,B,direction);
+        if(d != -1 && almost_equal(d, 0)){ // && crossE<crossF A currently touches EF, but AB is moving away from EF
+            double dE = point_distance(E,A,B,direction, true);
+            if(dE < 0 || almost_equal(dE*overlap,0)){
+                d = -1;
+            }
+        }
+        if(d != -1){
+            distances.push_back(d);
+        }
+    }
+
+    if(distances.size() == 0){
+        return -1;
+    }
+
+    return 0;
+}
+double polygon_slide_distance(Polygon A, Polygon B, Point offset, TranslationVector translationVector) {
+
+
+    Pointf dir = translationVector.normalize();
+    Pointf normal(dir.y, -dir.x);
+    Pointf reverse(-dir.x, -dir.y);
+    Points & edgeA = A.points;
+    Points & edgeB = B.points;
+    double distance = -1 ;
+    for( int i = 0; i < edgeA.size()-1; ++i){
+        for(int j = 0;j < edgeB.size()-1; ++j){
+
+            Point A1(A.points[i]);
+
+            Point A2(edgeA[j+1]);
+
+            Point B1(edgeB[i]+offset);
+
+            Point B2(edgeB[i+1]+offset);
+
+            if(almost_equal(A1,A2) || almost_equal(B1,B2)){
+                continue; // extremely small line
+            }
+
+            // for these two edges calculate the minimum distance one of them can travel in the given direction before intersection
+            double d = segment_distance(A1, A2, B1, B2, dir );
+
+            if( d > 0){
+                if( distance == -1 || d < distance){
+                    distance = d;
+                }
+            }
+
+        }
+    }
+    return distance;
+}
 Polygon no_fit_polygon(Polygon A, Polygon B) {
     Polygon nfp;
     if(A.points.size()<3 || B.points.size()<3 )
@@ -735,10 +954,7 @@ Polygon no_fit_polygon(Polygon A, Polygon B) {
             }
 
             // Generate the translation vectors
-            struct translation_vector{
-               Point point, start, end;
-            };
-            std::vector<translation_vector> translation_vectors;
+            std::vector<TranslationVector> translation_vectors;
             for(int i = 0; i < edges_indices.size(); ++i){
                 A.points[edges_indices[i].x].marked = true;
                 Point vertex_A = A.points[edges_indices[i].x];
@@ -765,22 +981,22 @@ Polygon no_fit_polygon(Polygon A, Polygon B) {
                 Point next_B = B.points[next_B_index];
 
                 if(type[i] == 0){
-                    translation_vector vA1, vA2, vB1, vB2;
+                    TranslationVector vA1, vA2, vB1, vB2;
 
-                    vA1.point = Point(prev_A-vertex_A);
+                    vA1.dir = Point(prev_A-vertex_A);
                     vA1.start = vertex_A;
                     vA1.end = prev_A;
 
-                    vA2.point = Point(next_A - vertex_A);
+                    vA2.dir = Point(next_A - vertex_A);
                     vA2.start = vertex_A;
                     vA2.end = next_A;
 
                     // B vectors are inverted to achieve correct sliding
-                    vB1.point = Point(vertex_B - prev_B);
+                    vB1.dir = Point(vertex_B - prev_B);
                     vB1.start = prev_B;
                     vB1.end = vertex_B;
 
-                    vB2.point = Point(vertex_B - next_B);
+                    vB2.dir = Point(vertex_B - next_B);
                     vB2.start = next_B;
                     vB2.end = vertex_B;
 
@@ -791,28 +1007,28 @@ Polygon no_fit_polygon(Polygon A, Polygon B) {
 
                 }else if(type[i] == 1){
                     // This is the second case were we use the stationary polygon's edge to get the transition vector
-                    translation_vector vA1, vA2;
+                    TranslationVector vA1, vA2;
 
-                    vA1.point = vertex_A - vertex_B + offset;
+                    vA1.dir = vertex_A - vertex_B + offset;
                     vA1.start = prev_A;
                     vA1.end = vertex_A;
 
-                    // I don't think that we need this??
-                    vA2.point = prev_A - vertex_B + offset;
+                    // TODO: I don't think that we need this??
+                    vA2.dir = prev_A - vertex_B + offset;
                     vA2.start = vertex_A;
                     vA2.end = prev_A;
                     translation_vectors.push_back(vA1);
                     translation_vectors.push_back(vA2);
 
                 }else if(type[i] == 2){
-                    translation_vector vB1, vB2;
+                    TranslationVector vB1, vB2;
 
-                    vB1.point = vertex_A - vertex_B + offset;
+                    vB1.dir = vertex_A - vertex_B + offset;
                     vB1.start = prev_B;
                     vB1.end = vertex_B;
 
-                    // We don't need this also I think?
-                    vB2.point = vertex_A - prev_B + offset;
+                    // TODO: We don't need this also I think?
+                    vB2.dir = vertex_A - prev_B + offset;
                     vB2.start = vertex_B;
                     vB2.end = prev_B;
 
@@ -821,10 +1037,32 @@ Polygon no_fit_polygon(Polygon A, Polygon B) {
                 }
             }
             // Reject vectors that will cause intersection
+            double max_distance = 0;
+            TranslationVector translate;
+            for(auto & translation_vector : translation_vectors){
+                // TODO: not sure what this is for?? I'll check it after I finish
+                if(translation_vector.dir == Point(0,0)) {
+                    continue;
+                }
 
+                // TODO: if this vector points us back to where we came from ignore it
+                // cross product = 0, dot product < 0
+                // prev_vector , translation_vectors[i]
 
-            // Calculate the maximum distance we can slide alongside each vector
-            // polygon_slide_distance( A, B, translation_vector );
+                // Calculate the maximum distance we can slide alongside each vector
+                double dist = polygon_slide_distance(A, B, offset, translation_vector );
+                double vecd2 = translation_vector.dir.x * translation_vector.dir.x +
+                        translation_vector.dir.y * translation_vector.dir.y;
+                if(dist == -1 || dist*dist > vecd2){
+                    dist = sqrt(vecd2);
+                }
+                // TODO: I think the first condition seems redundant. Check it later
+                if( dist !=-1 && dist > max_distance ){
+                    max_distance = dist;
+                    translate = translation_vector;
+                }
+            }
+            // polygon_slide_distance( A, B, TrasnationVector );
             // Get the maximum translation vector and update the current offset to translate B by that
         }
 
@@ -848,6 +1086,9 @@ bool almost_equal(double x, double y, double tolerance){
 bool almost_equal(Point a, Point b, double tolerance) {
     return ((a.x-b.x <= tolerance) && (a.y-b.y <= tolerance));
 }
+
+
+
 
         void
 MedialAxis::build(ThickPolylines* polylines)
