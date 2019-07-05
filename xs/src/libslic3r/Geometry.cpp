@@ -702,7 +702,7 @@ double segment_distance(Point A, Point B, Point E, Point F, Pointf direction) {
     if(almost_equal(ABmax, EFmin ) || almost_equal(ABmin, EFmax )){
         return -1;
     }
-    // segments miss eachother completely
+    // segments miss each other completely
     if(ABmax < EFmin || ABmin > EFmax){
         return -1;
     }
@@ -854,7 +854,7 @@ double polygon_slide_distance(Polygon A, Polygon B, Point offset, TranslationVec
                 continue; // extremely small line
             }
 
-            // for these two edges calculate the minimum distance one of them can travel in the given direction before intersection
+            // for these two edges calculate the maximum distance one of them can travel in the given direction before intersection
             double d = segment_distance(A1, A2, B1, B2, dir );
 
             if( d > 0){
@@ -912,7 +912,8 @@ Polygon no_fit_polygon(Polygon A, Polygon B) {
 
         // This will be moving with B and we'll check if it returns to start point
         // then we're finished with the NFP from the specified start point
-        Point reference(offset);
+        Pointf reference(offset.x, offset.y);
+        Pointf start(reference);
         int counter = 0; // Used for preventing infinite loop
 
 
@@ -983,22 +984,22 @@ Polygon no_fit_polygon(Polygon A, Polygon B) {
                 if(type[i] == 0){
                     TranslationVector vA1, vA2, vB1, vB2;
 
-                    vA1.dir = Point(prev_A-vertex_A);
-                    vA1.start = vertex_A;
-                    vA1.end = prev_A;
+                    vA1.dir = Pointf(prev_A.x-vertex_A.x, prev_A.y - vertex_A.y);
+                    vA1.start = Pointf(vertex_A.x, vertex_A.y);
+                    vA1.end = Pointf(prev_A.x, prev_A.y);
 
-                    vA2.dir = Point(next_A - vertex_A);
-                    vA2.start = vertex_A;
-                    vA2.end = next_A;
+                    vA2.dir = Pointf(next_A.x - vertex_A.x, next_A.y - vertex_A.y);
+                    vA2.start = Pointf(vertex_A.x, vertex_A.y);
+                    vA2.end = Pointf(next_A.x, next_A.y);
 
                     // B vectors are inverted to achieve correct sliding
-                    vB1.dir = Point(vertex_B - prev_B);
-                    vB1.start = prev_B;
-                    vB1.end = vertex_B;
+                    vB1.dir = Pointf(vertex_B.x - prev_B.x, vertex_B.y - prev_B.y);
+                    vB1.start = Pointf(prev_B.x, prev_B.y);
+                    vB1.end = Pointf(vertex_B.x, vertex_B.y);
 
-                    vB2.dir = Point(vertex_B - next_B);
-                    vB2.start = next_B;
-                    vB2.end = vertex_B;
+                    vB2.dir = Pointf(vertex_B.x - next_B.x, vertex_B.y - next_B.y);
+                    vB2.start = Pointf(next_B.x, next_B.y);
+                    vB2.end = Pointf(vertex_B.x, vertex_B.y);
 
                     translation_vectors.push_back(vA1);
                     translation_vectors.push_back(vA2);
@@ -1009,28 +1010,32 @@ Polygon no_fit_polygon(Polygon A, Polygon B) {
                     // This is the second case were we use the stationary polygon's edge to get the transition vector
                     TranslationVector vA1, vA2;
 
-                    vA1.dir = vertex_A - vertex_B + offset;
-                    vA1.start = prev_A;
-                    vA1.end = vertex_A;
+                    Point temp = vertex_A - vertex_B + offset;
+                    vA1.dir = Pointf(temp.x , temp.y);
+                    vA1.start = Pointf(prev_A.x, prev_A.y);
+                    vA1.end = Pointf(vertex_A.x, prev_A.y);
 
                     // TODO: I don't think that we need this??
-                    vA2.dir = prev_A - vertex_B + offset;
-                    vA2.start = vertex_A;
-                    vA2.end = prev_A;
+                    temp = prev_A - vertex_B + offset;
+                    vA2.dir = Pointf(temp.x , temp.y);
+                    vA2.start = Pointf(vertex_A.x, vertex_A.y);
+                    vA2.end = Pointf(prev_A.x, prev_A.y);
                     translation_vectors.push_back(vA1);
                     translation_vectors.push_back(vA2);
 
                 }else if(type[i] == 2){
                     TranslationVector vB1, vB2;
 
-                    vB1.dir = vertex_A - vertex_B + offset;
-                    vB1.start = prev_B;
-                    vB1.end = vertex_B;
+                    Point temp = vertex_A - vertex_B + offset;
+                    vB1.dir = Pointf(temp.x , temp.y);
+                    vB1.start = Pointf(prev_B.x, prev_B.y);
+                    vB1.end = Pointf(vertex_B.x, vertex_B.y);
 
                     // TODO: We don't need this also I think?
-                    vB2.dir = vertex_A - prev_B + offset;
-                    vB2.start = vertex_B;
-                    vB2.end = prev_B;
+                    temp = vertex_A - prev_B + offset;
+                    vB2.dir = Pointf(temp.x , temp.y);
+                    vB2.start = Pointf(vertex_B.x, vertex_B.y);
+                    vB2.end = Pointf(prev_B.x, prev_B.y);
 
                     translation_vectors.push_back(vB1);
                     translation_vectors.push_back(vB2);
@@ -1039,9 +1044,10 @@ Polygon no_fit_polygon(Polygon A, Polygon B) {
             // Reject vectors that will cause intersection
             double max_distance = 0;
             TranslationVector translate;
+            // Get the maximum translation vector and update the current offset to translate B by that
             for(auto & translation_vector : translation_vectors){
                 // TODO: not sure what this is for?? I'll check it after I finish
-                if(translation_vector.dir == Point(0,0)) {
+                if(translation_vector.dir == Pointf(0,0) || translation_vector.dir == Pointf(-1,-1)) {
                     continue;
                 }
 
@@ -1062,17 +1068,59 @@ Polygon no_fit_polygon(Polygon A, Polygon B) {
                     translate = translation_vector;
                 }
             }
-            // polygon_slide_distance( A, B, TrasnationVector );
-            // Get the maximum translation vector and update the current offset to translate B by that
-        }
 
+            if(translate.dir == translate.start && translate.end == translate.start && translate.start == Pointf(-1,-1)){
+                std::cout<<"error no translation vector found";
+                break;
+            }
+
+            translate.start.marked = true;
+            translate.end.marked = true;
+
+            // TODO: this is used to ignore vectors that will cause us to go back to where we came from
+            // prev_vector = translate;
+
+            // Trimming the vectors
+            double vlength2 = translate.dir.x*translate.dir.x + translate.dir.y * translate.dir.y;
+            if(max_distance*max_distance < vlength2 && !almost_equal(max_distance*max_distance , vlength2)){
+                double scale = sqrt(max_distance*max_distance/vlength2);
+                translate.dir.x *= scale;
+                translate.dir.y *= scale;
+            }
+            reference = reference + translate.dir;
+
+            // TODO: coincides with should always replace almost_equal
+            if(reference.coincides_with_epsilon(start)){
+                // we've made a full loop
+                break;
+            }
+
+            // if A and B start on a touching horizontal line, the end point may not be the start point
+            bool looped = false;
+            if(nfp.points.size() > 0){
+                for(int i =0;i<nfp.points.size(); ++i){
+                    Pointf temp = Pointf(nfp.points[i].x, nfp.points[i].y);
+                    if( reference.coincides_with_epsilon(temp) ){
+                        looped = true;
+                    }
+                }
+            }
+            if(looped){
+                break;
+            }
+
+            nfp.append(Point(reference.x, reference.y));
+            offset = offset + Point(translate.dir.x, translate.dir.y);
+
+            counter++;
+        }
 
 
         // If no more new start_offset
         break;
     }
 
-    return Polygon();
+    return nfp;
 }
 
 bool within_distance(Point p1, Point p2, double distance) {

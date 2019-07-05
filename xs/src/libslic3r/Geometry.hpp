@@ -29,7 +29,10 @@ bool almost_equal(Point a, Point b, double tolerance=10e-8);
 bool almost_equal(double x, double y, double tolerance = 10e-8);
 
 struct TranslationVector{
-    Point dir, start, end;
+    Pointf dir, start, end;
+    TranslationVector(){
+        dir = start = end = Pointf(-1,-1);
+    }
     Pointf normalize(){
         // TODO: could we use normalize from point her?? return dir.normalize()
         if(almost_equal(dir.x*dir.x + dir.y*dir.y, 1)){

@@ -310,6 +310,14 @@ Model::arrange_objects(coordf_t dist, const BoundingBoxf* bb)
             shapes.push_back(o->instance_bounding_hull(i));
         }
     }
+    if(shapes.size()>=2){
+        std::cout<<"try NFP"<<std::endl;
+        Polygon A,B;
+        A = shapes[0].hull;
+        B = shapes[1].hull;
+        Polygon result = Geometry::no_fit_polygon(A , B);
+        std::cout<<"finished NFP"<<std::endl;
+    }
     // get the (transformed) size of each instance so that we take
     // into account their different transformations when packing
     Pointfs instance_sizes;

@@ -116,6 +116,7 @@ std::ostream& operator<<(std::ostream &stm, const Pointf &pointf);
 class Pointf
 {
     public:
+    bool marked = false;
     coordf_t x;
     coordf_t y;
     explicit constexpr Pointf(coordf_t _x = 0, coordf_t _y = 0): x(_x), y(_y) {};
