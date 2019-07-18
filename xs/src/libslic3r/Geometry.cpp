@@ -651,6 +651,9 @@ arrange(size_t total_parts, const Pointf &part_size, coordf_t dist, const Boundi
 double point_distance( Point p, Point s1, Point s2, Pointf normal, bool infinite ){
 
     // TODO: normal might need to be normalized ( check translation vector )
+    TranslationVector tv;
+    tv.dir = normal;
+    normal = tv.normalize();
     Pointf dir(normal.y, -normal.x);
 
 
@@ -824,11 +827,16 @@ double segment_distance(Point A, Point B, Point E, Point F, Pointf direction) {
         }
     }
 
-    if(distances.size() == 0){
+    if(distances.empty()){
         return -1;
     }
-
-    return 0;
+    double min_dist = distances[0];
+    for(int i=0; i<distances.size(); ++i){
+        if(min_dist>distances[i]){
+            min_dist = distances[i];
+        }
+    }
+    return min_dist;
 }
 double polygon_slide_distance(Polygon A, Polygon B, Point offset, TranslationVector translationVector) {
 
@@ -858,7 +866,7 @@ double polygon_slide_distance(Polygon A, Polygon B, Point offset, TranslationVec
             double d = segment_distance(A1, A2, B1, B2, dir );
 
             if( d > 0){
-                if( distance == -1 || d < distance){
+                if( distance == -1 || d < distance || almost_equal(d, 0)){
                     distance = d;
                 }
             }
@@ -893,7 +901,7 @@ Polygon no_fit_polygon(Polygon A, Polygon B) {
     Point max_b(B.points[0]);
     int max_b_index = 0;
     for(int i = 1;i<B.points.size();++i){
-        if(max_b.y<B.points[i].y){
+        if(max_b.y>B.points[i].y){
             max_b = B.points[i];
             max_b_index=i;
         }
@@ -912,17 +920,17 @@ Polygon no_fit_polygon(Polygon A, Polygon B) {
 
         // This will be moving with B and we'll check if it returns to start point
         // then we're finished with the NFP from the specified start point
-        Pointf reference(offset.x, offset.y);
-        Pointf start(reference);
+        Pointf reference(nfp[0].x, nfp[0].y);
+        Pointf start(nfp[0].x, nfp[0].y);
         int counter = 0; // Used for preventing infinite loop
 
 
+        TranslationVector prev_vector;
         while(counter < 10*(A.points.size() + B.points.size())) {
             // This vector is used to hold the type of the pair of edges
             std::vector<int> type;
             // This vector holds the indices of the pair of edges which are touching each other in polygons A and B
             Points edges_indices;
-
             // First we get the touching edges and their type
             /* We have three cases here:
             * 1) Both edges touch at a single vertex. ( I think this single vertex belongs to each polygon )
@@ -932,11 +940,10 @@ Polygon no_fit_polygon(Polygon A, Polygon B) {
             * */
             for(int i = 0; i < A.points.size(); ++i){
                 // this is to close the loop to connect last vertex to the first one creating the last edge
-                int next_i = i == (A.points.size()-1) ? 0 : i+1;
+                int next_i = (i == (A.points.size()-1) ? 0 : i+1);
                 for(int j = 0; j < B.points.size(); ++j){
-                    int next_j = j == (B.points.size()-1)? 0 : j+1;
-//                    Point b1(B.points[j]+offset);
-//                    Point b2(B.points[next_j]+offset);
+                    int next_j = (j == (B.points.size()-1)? 0 : j+1);
+
                     if(almost_equal(A.points[i],B.points[j]+offset)){
                         // First case: both polygons share a common vertex at either the start or the end of the current edges
                         type.push_back(0);
@@ -945,7 +952,7 @@ Polygon no_fit_polygon(Polygon A, Polygon B) {
                         // Second case: vertex of B's edge is in the middle of A's edge
                         type.push_back(1);
                         edges_indices.push_back(Point(next_i,j));
-                    }else if(almost_equal(A.points[i].distance_to(Line(B.points[i]+offset,B.points[next_j]+offset)),0)){
+                    }else if(almost_equal(A.points[i].distance_to(Line(B.points[j]+offset,B.points[next_j]+offset)),0)){
                         // Second case: vertex of B's edge is in the middle of A's edge
                         type.push_back(2);
                         edges_indices.push_back(Point(i,next_j));
@@ -965,7 +972,7 @@ Polygon no_fit_polygon(Polygon A, Polygon B) {
                 int next_A_index = edges_indices[i].x+1;
                 // Loop back
                 prev_A_index = (prev_A_index < 0) ? A.points.size()-1 : prev_A_index;
-                next_A_index = (prev_A_index >= A.points.size()) ? 0 : next_A_index;
+                next_A_index = (next_A_index >= A.points.size()) ? 0 : next_A_index;
 
                 Point prev_A = A.points[prev_A_index];
                 Point next_A = A.points[next_A_index];
@@ -976,7 +983,7 @@ Polygon no_fit_polygon(Polygon A, Polygon B) {
                 int next_B_index = edges_indices[i].y+1;
                 // Loop back
                 prev_B_index = (prev_B_index < 0) ? B.points.size()-1 : prev_B_index;
-                next_B_index = (prev_B_index >= B.points.size()) ? 0 : next_B_index;
+                next_B_index = (next_B_index >= B.points.size()) ? 0 : next_B_index;
 
                 Point prev_B = B.points[prev_B_index];
                 Point next_B = B.points[next_B_index];
@@ -1010,13 +1017,13 @@ Polygon no_fit_polygon(Polygon A, Polygon B) {
                     // This is the second case were we use the stationary polygon's edge to get the transition vector
                     TranslationVector vA1, vA2;
 
-                    Point temp = vertex_A - vertex_B + offset;
+                    Point temp = vertex_A - (vertex_B + offset);
                     vA1.dir = Pointf(temp.x , temp.y);
                     vA1.start = Pointf(prev_A.x, prev_A.y);
-                    vA1.end = Pointf(vertex_A.x, prev_A.y);
+                    vA1.end = Pointf(vertex_A.x, vertex_A.y);
 
                     // TODO: I don't think that we need this??
-                    temp = prev_A - vertex_B + offset;
+                    temp = prev_A - (vertex_B + offset);
                     vA2.dir = Pointf(temp.x , temp.y);
                     vA2.start = Pointf(vertex_A.x, vertex_A.y);
                     vA2.end = Pointf(prev_A.x, prev_A.y);
@@ -1026,13 +1033,13 @@ Polygon no_fit_polygon(Polygon A, Polygon B) {
                 }else if(type[i] == 2){
                     TranslationVector vB1, vB2;
 
-                    Point temp = vertex_A - vertex_B + offset;
+                    Point temp = vertex_A - (vertex_B + offset);
                     vB1.dir = Pointf(temp.x , temp.y);
                     vB1.start = Pointf(prev_B.x, prev_B.y);
                     vB1.end = Pointf(vertex_B.x, vertex_B.y);
 
                     // TODO: We don't need this also I think?
-                    temp = vertex_A - prev_B + offset;
+                    temp = vertex_A - (prev_B + offset);
                     vB2.dir = Pointf(temp.x , temp.y);
                     vB2.start = Pointf(vertex_B.x, vertex_B.y);
                     vB2.end = Pointf(prev_B.x, prev_B.y);
@@ -1051,25 +1058,48 @@ Polygon no_fit_polygon(Polygon A, Polygon B) {
                     continue;
                 }
 
-                // TODO: if this vector points us back to where we came from ignore it
+//                std::cout<<"translation_vector.dir: "<<translation_vector.dir<<std::endl;
+
+
+                // if this vector points us back to where we came from ignore it
                 // cross product = 0, dot product < 0
-                // prev_vector , translation_vectors[i]
+                if(!prev_vector.dir.coincides_with_epsilon( Pointf(-1, -1))){
+                    if(translation_vector.dir.y * prev_vector.dir.y + translation_vector.dir.x * prev_vector.dir.x < 0){
+                        // compare magnitude with unit vectors
+                        double vectorlength = sqrt(translation_vector.dir.x*translation_vector.dir.x+translation_vector.dir.y*translation_vector.dir.y);
+                        Pointf unitv = Pointf( translation_vector.dir.x/vectorlength, translation_vector.dir.y/vectorlength);
+
+                        double prevlength = sqrt(prev_vector.dir.x*prev_vector.dir.x+prev_vector.dir.y*prev_vector.dir.y);
+                        Pointf prevunit = Pointf( prev_vector.dir.x/prevlength, prev_vector.dir.y/prevlength);
+
+                        // we need to scale down to unit vectors to normalize vector length. Could also just do a tan here
+                        if(fabs(unitv.y * prevunit.x - unitv.x * prevunit.y) < 0.0001){
+                            continue;
+                        }
+                    }
+                }
 
                 // Calculate the maximum distance we can slide alongside each vector
                 double dist = polygon_slide_distance(A, B, offset, translation_vector );
+//                std::cout<<"dist: "<<dist<<std::endl;
                 double vecd2 = translation_vector.dir.x * translation_vector.dir.x +
                         translation_vector.dir.y * translation_vector.dir.y;
+//                std::cout<<"sqrt(vecd2): "<<sqrt(vecd2)<<std::endl;
+
                 if(dist == -1 || dist*dist > vecd2){
                     dist = sqrt(vecd2);
                 }
                 // TODO: I think the first condition seems redundant. Check it later
                 if( dist !=-1 && dist > max_distance ){
                     max_distance = dist;
-                    translate = translation_vector;
+                    translate.dir = translation_vector.dir;
+                    translate.start = translation_vector.start;
+                    translate.end = translation_vector.end;
                 }
             }
 
-            if(translate.dir == translate.start && translate.end == translate.start && translate.start == Pointf(-1,-1)){
+//            if(translate.dir == translate.start && translate.end == translate.start && translate.start == Pointf(-1,-1)){
+            if(translate.dir == Pointf(-1,-1)){
                 std::cout<<"error no translation vector found";
                 break;
             }
@@ -1077,8 +1107,8 @@ Polygon no_fit_polygon(Polygon A, Polygon B) {
             translate.start.marked = true;
             translate.end.marked = true;
 
-            // TODO: this is used to ignore vectors that will cause us to go back to where we came from
-            // prev_vector = translate;
+            // this is used to ignore vectors that will cause us to go back to where we came from
+             prev_vector.dir = translate.dir;
 
             // Trimming the vectors
             double vlength2 = translate.dir.x*translate.dir.x + translate.dir.y * translate.dir.y;
@@ -1092,14 +1122,15 @@ Polygon no_fit_polygon(Polygon A, Polygon B) {
             // TODO: coincides with should always replace almost_equal
             if(reference.coincides_with_epsilon(start)){
                 // we've made a full loop
+                std::cout<<"returned to origin\n";
                 break;
             }
 
             // if A and B start on a touching horizontal line, the end point may not be the start point
             bool looped = false;
-            if(nfp.points.size() > 0){
-                for(int i =0;i<nfp.points.size(); ++i){
-                    Pointf temp = Pointf(nfp.points[i].x, nfp.points[i].y);
+            if(!nfp.points.empty()){
+                for(auto & point : nfp.points){
+                    Pointf temp = Pointf(point.x, point.y);
                     if( reference.coincides_with_epsilon(temp) ){
                         looped = true;
                     }
@@ -1108,14 +1139,12 @@ Polygon no_fit_polygon(Polygon A, Polygon B) {
             if(looped){
                 break;
             }
-
+            std::cout<<"nfp: "<<reference.x<<", "<<reference.y<<std::endl;
             nfp.append(Point(reference.x, reference.y));
             offset = offset + Point(translate.dir.x, translate.dir.y);
 
             counter++;
         }
-
-
         // If no more new start_offset
         break;
     }
@@ -1129,10 +1158,10 @@ bool within_distance(Point p1, Point p2, double distance) {
     return ((dx*dx + dy*dy)< distance*distance);
 }
 bool almost_equal(double x, double y, double tolerance){
-    return abs(x-y)<=tolerance;
+    return fabs(x-y)<=tolerance;
 }
 bool almost_equal(Point a, Point b, double tolerance) {
-    return ((a.x-b.x <= tolerance) && (a.y-b.y <= tolerance));
+    return ((fabs(a.x-b.x) <= tolerance) && (fabs(a.y-b.y) <= tolerance));
 }
 
 
