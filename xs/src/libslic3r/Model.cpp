@@ -303,20 +303,43 @@ bool
 Model::arrange_objects(coordf_t dist, const BoundingBoxf* bb)
 {
     std::vector<BoundingHull> shapes;
-    for(const ModelObject* o : this->objects){
+    ModelObjectPtrs modelObjectPtrs;
+    for(ModelObject* o : this->objects){
         for(size_t i = 0; i< o->instances.size(); ++i){
             // TODO: increase each shape's size so that we could keep a minimum distance between objects
             // call offset function.
             shapes.push_back(o->instance_bounding_hull(i));
+            modelObjectPtrs.push_back(o);
         }
     }
+
+
     if(shapes.size()>=2){
         std::cout<<"try NFP"<<std::endl;
-        Polygon A,B;
-        A = shapes[0].hull;
-        B = shapes[1].hull;
-        Polygon result = Geometry::no_fit_polygon(A , B);
+        BoundingHull* A, *B;
+//        Polygon B;
+
+
+        // TODO: find a proper placement for the first shape by calling no_fit_polygon() on it and the print bed
+
+        A = &shapes[0];
+
+        for(size_t i = 1;i< shapes.size(); ++i ){
+            B = &shapes[i];
+            Polygon result = Geometry::no_fit_polygon_convex(A->hull , B->hull);
+            if(result.points.empty()){
+                std::cout<<"no NFP found\n";
+                continue;
+            }
+            modelObjectPtrs[i]->translate(Pointf3(result.points[0].x, result.points[0].y, 0));
+            B->hull.translate(result.points[0].x, result.points[0].y);
+
+            A->merge(B->hull.points);
+            A->update_hull();
+        }
+//        Polygon result = Geometry::no_fit_polygon_convex(A , B);
         std::cout<<"finished NFP"<<std::endl;
+        return true;
     }
     // get the (transformed) size of each instance so that we take
     // into account their different transformations when packing

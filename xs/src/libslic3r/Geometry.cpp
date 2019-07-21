@@ -695,11 +695,11 @@ double segment_distance(Point A, Point B, Point E, Point F, Pointf direction) {
     double crossE = E.x*direction.x + E.y*direction.y;
     double crossF = F.x*direction.x + F.y*direction.y;
 
-    double ABmin = fmin(dotA,dotB);//? dotA : dotB;
-    double ABmax = fmax(dotA,dotB);// ? dotA : dotB;
+    double ABmin = fmin(dotA, dotB);//? dotA : dotB;
+    double ABmax = fmax(dotA, dotB);// ? dotA : dotB;
 
-    double EFmax = fmax(dotE,dotF);//? dotE : dotF;
-    double EFmin = fmax(dotE, dotF);//? dotE : dotF;
+    double EFmax = fmax(dotE, dotF);//? dotE : dotF;
+    double EFmin = fmin(dotE, dotF);//? dotE : dotF;
 
     // segments that will merely touch at one point
     if(almost_equal(ABmax, EFmin ) || almost_equal(ABmin, EFmax )){
@@ -767,7 +767,7 @@ double segment_distance(Point A, Point B, Point E, Point F, Pointf direction) {
     }
     else if(dotA > EFmin && dotA < EFmax){
         bool collide = false;
-        double d = point_distance(A,E,F,reverse);
+        double d = point_distance(A,E,F,reverse, false);
         if( d != -1 && almost_equal(d, 0)){ //  A currently touches EF, but AB is moving away from EF
             double dB = point_distance(B,E,F,reverse, true);
             if(dB < 0 || almost_equal(dB*overlap,0)){
@@ -831,9 +831,9 @@ double segment_distance(Point A, Point B, Point E, Point F, Pointf direction) {
         return -1;
     }
     double min_dist = distances[0];
-    for(int i=0; i<distances.size(); ++i){
-        if(min_dist>distances[i]){
-            min_dist = distances[i];
+    for(double distance : distances){
+        if(min_dist > distance){
+            min_dist = distance;
         }
     }
     return min_dist;
@@ -847,10 +847,10 @@ double polygon_slide_distance(Polygon A, Polygon B, Point offset, TranslationVec
     Points & edgeA = A.points;
     Points & edgeB = B.points;
     double distance = -1 ;
-    for( int i = 0; i < edgeA.size()-1; ++i){
-        for(int j = 0;j < edgeB.size()-1; ++j){
+    for( int i = 0; i < edgeB.size()-1; ++i){
+        for(int j = 0;j < edgeA.size()-1; ++j){
 
-            Point A1(A.points[i]);
+            Point A1(edgeA[j]);
 
             Point A2(edgeA[j+1]);
 
@@ -877,9 +877,24 @@ double polygon_slide_distance(Polygon A, Polygon B, Point offset, TranslationVec
 }
 Polygon no_fit_polygon(Polygon A, Polygon B) {
     Polygon nfp;
-    if(A.points.size()<3 || B.points.size()<3 )
+    if(A.points.size()<3 || B.points.size()<3 ) {
         return nfp;
-
+    }
+//    ClipperLib::Paths p;
+//    ClipperLib::Paths scaled;
+//    ClipperLib::Path p1 = Slic3rMultiPoint_to_ClipperPath(A);
+//    ClipperLib::Path p2 = Slic3rMultiPoint_to_ClipperPath(B);
+//    scaled.push_back(p1);
+//    scaled.push_back(p2);
+//    scaleClipperPolygons(scaled, 10000000);
+////    p = Slic3rMultiPoint_to_ClipperPath(A);
+//    ClipperLib::MinkowskiDiff(scaled[0], scaled[1], p);
+//    nfp = ClipperPath_to_Slic3rMultiPoint<Polygon>(p[0]);
+//    nfp.scale(1.0/10000000);
+//    for(int i = 0; i < nfp.points.size(); ++i){
+//        nfp.points[i] = nfp.points[i] + B[0];
+//    }
+//    return nfp;
     // Make sure that A and B are both anti-clockwise
     // TODO: see if this would be taken care of before calling the function
     A.make_counter_clockwise();
@@ -907,7 +922,7 @@ Polygon no_fit_polygon(Polygon A, Polygon B) {
         }
     }
     // This offset will be added to every point in B to translate it to A's bottom point.
-    //Point offset(min_a - max_b);
+    // Point offset(min_a - max_b);
     Point offset; // in SVGNest this is startOffset or startPoint
     // TODO: If we're looking for interior NFP:
     // offset = search_start_point(A, B, inside = true);
@@ -948,11 +963,14 @@ Polygon no_fit_polygon(Polygon A, Polygon B) {
                         // First case: both polygons share a common vertex at either the start or the end of the current edges
                         type.push_back(0);
                         edges_indices.push_back(Point(i,j));
-                    }else if(almost_equal((B.points[j]+offset).distance_to(Line(A.points[i],A.points[next_i])),0)){
+                    }else if(
+                            almost_equal((B.points[j]+offset).distance_to(Line(A.points[i],A.points[next_i])),0) &&
+                                    !almost_equal(B.points[j]+offset,A.points[next_i])){
                         // Second case: vertex of B's edge is in the middle of A's edge
                         type.push_back(1);
                         edges_indices.push_back(Point(next_i,j));
-                    }else if(almost_equal(A.points[i].distance_to(Line(B.points[j]+offset,B.points[next_j]+offset)),0)){
+                    }else if(almost_equal(A.points[i].distance_to(Line(B.points[j]+offset,B.points[next_j]+offset)),0) &&
+                            !almost_equal(B.points[next_j]+offset,A.points[i])){
                         // Second case: vertex of B's edge is in the middle of A's edge
                         type.push_back(2);
                         edges_indices.push_back(Point(i,next_j));
@@ -1108,15 +1126,16 @@ Polygon no_fit_polygon(Polygon A, Polygon B) {
             translate.end.marked = true;
 
             // this is used to ignore vectors that will cause us to go back to where we came from
-             prev_vector.dir = translate.dir;
+            prev_vector.dir = translate.dir;
 
             // Trimming the vectors
             double vlength2 = translate.dir.x*translate.dir.x + translate.dir.y * translate.dir.y;
             if(max_distance*max_distance < vlength2 && !almost_equal(max_distance*max_distance , vlength2)){
-                double scale = sqrt(max_distance*max_distance/vlength2);
+                double scale = sqrt((max_distance*max_distance)/vlength2);
                 translate.dir.x *= scale;
                 translate.dir.y *= scale;
             }
+
             reference = reference + translate.dir;
 
             // TODO: coincides with should always replace almost_equal
@@ -1151,7 +1170,26 @@ Polygon no_fit_polygon(Polygon A, Polygon B) {
 
     return nfp;
 }
-
+Polygon no_fit_polygon_convex(Polygon A, Polygon B){
+    Polygon nfp;
+    if(A.points.size()<3 || B.points.size()<3 ) {
+        return nfp;
+    }
+    ClipperLib::Paths p;
+    ClipperLib::Paths scaled;
+    ClipperLib::Path p1 = Slic3rMultiPoint_to_ClipperPath(A);
+    ClipperLib::Path p2 = Slic3rMultiPoint_to_ClipperPath(B);
+    scaled.push_back(p1);
+    scaled.push_back(p2);
+    scaleClipperPolygons(scaled, 10000000);
+    ClipperLib::MinkowskiDiff(scaled[0], scaled[1], p);
+    nfp = ClipperPath_to_Slic3rMultiPoint<Polygon>(p[0]);
+    nfp.scale(1.0/10000000);
+//    for(int i = 0; i < nfp.points.size(); ++i){
+//        nfp.points[i] = nfp.points[i] + B[0];
+//    }
+    return nfp;
+}
 bool within_distance(Point p1, Point p2, double distance) {
     double dx = p1.x - p2.x;
     double dy = p1.y - p2.y;

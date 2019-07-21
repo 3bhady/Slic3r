@@ -278,6 +278,11 @@ template bool BoundingBoxBase<Pointf>::contains(const Pointf &point) const;
 void BoundingHull::merge(std::vector<Pointf> points){
     this->original_points.insert(this->original_points.end(), points.begin(), points.end());
 }
+void BoundingHull::merge(std::vector<Point> points){
+    for(int i=0;i<points.size();++i){
+        this->original_points.push_back(Pointf(points[i].x,points[i].y));
+    }
+}
 void BoundingHull::merge(BoundingHull bh){
     this->original_points.insert(this->original_points.end(), bh.original_points.begin(), bh.original_points.end());
 }

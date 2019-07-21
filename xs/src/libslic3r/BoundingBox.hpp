@@ -111,6 +111,7 @@ class BoundingHull : public BoundingBoxBase<Pointf> {
     BoundingHull() : BoundingBoxBase<Pointf>() {};
 //    BoundingHull(const std::vector<Pointf> &pointsf);
     void merge(std::vector<Pointf> points);
+    void merge(std::vector<Point> points);
     void merge(BoundingHull bh);
     void update_hull();
 
