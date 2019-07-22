@@ -881,21 +881,6 @@ Polygon no_fit_polygon(Polygon A, Polygon B) {
     if(A.points.size()<3 || B.points.size()<3 ) {
         return nfp;
     }
-//    ClipperLib::Paths p;
-//    ClipperLib::Paths scaled;
-//    ClipperLib::Path p1 = Slic3rMultiPoint_to_ClipperPath(A);
-//    ClipperLib::Path p2 = Slic3rMultiPoint_to_ClipperPath(B);
-//    scaled.push_back(p1);
-//    scaled.push_back(p2);
-//    scaleClipperPolygons(scaled, 10000000);
-////    p = Slic3rMultiPoint_to_ClipperPath(A);
-//    ClipperLib::MinkowskiDiff(scaled[0], scaled[1], p);
-//    nfp = ClipperPath_to_Slic3rMultiPoint<Polygon>(p[0]);
-//    nfp.scale(1.0/10000000);
-//    for(int i = 0; i < nfp.points.size(); ++i){
-//        nfp.points[i] = nfp.points[i] + B[0];
-//    }
-//    return nfp;
     // Make sure that A and B are both anti-clockwise
     // TODO: see if this would be taken care of before calling the function
     A.make_counter_clockwise();
@@ -906,20 +891,16 @@ Polygon no_fit_polygon(Polygon A, Polygon B) {
 
     // First we get A's bottom point
     Point min_a(A.points[0]);
-    int min_a_index = 0;
     for(int i = 1;i<A.points.size();++i){
         if(min_a.y<A.points[i].y){
             min_a = A.points[i];
-            min_a_index=i;
         }
     }
     // Now we get B's Top point
     Point max_b(B.points[0]);
-    int max_b_index = 0;
     for(int i = 1;i<B.points.size();++i){
         if(max_b.y>B.points[i].y){
             max_b = B.points[i];
-            max_b_index=i;
         }
     }
     // This offset will be added to every point in B to translate it to A's bottom point.
@@ -1171,28 +1152,37 @@ Polygon no_fit_polygon(Polygon A, Polygon B) {
 
     return nfp;
 }
+Polygon polygonOffset(const Polygon& A, double offset){
+    ClipperLib::ClipperOffset clipperOffset;
+    clipperOffset.AddPath(Slic3rMultiPoint_to_ClipperPath(A),ClipperLib::JoinType::jtRound, ClipperLib::EndType::etClosedPolygon);
+    ClipperLib::Paths new_paths;
+    double clipperScale = 10000000;
+    clipperOffset.Execute(new_paths,offset*clipperScale);
+    if(new_paths.size() !=1 ){
+        std::cout<<"Error in polygon offset"<<std::endl;
+    }
+    return ClipperPath_to_Slic3rMultiPoint<Polygon>(new_paths[0]);
+
+}
 Polygon no_fit_polygon_convex(Polygon A, Polygon B){
     Polygon nfp;
     if(A.points.size()<3 || B.points.size()<3 ) {
         return nfp;
     }
-
+    A.make_counter_clockwise();
+    B.make_clockwise();
     // First we get A's bottom point
     Point min_a(A.points[0]);
-    int min_a_index = 0;
     for(int i = 1;i<A.points.size();++i){
         if(min_a.y<A.points[i].y){
             min_a = A.points[i];
-            min_a_index=i;
         }
     }
     // Now we get B's Top point
     Point max_b(B.points[0]);
-    int max_b_index = 0;
     for(int i = 1;i<B.points.size();++i){
         if(max_b.y>B.points[i].y){
             max_b = B.points[i];
-            max_b_index=i;
         }
     }
     // This offset will be added to every point in B to translate it to A's bottom point.
@@ -1210,7 +1200,14 @@ Polygon no_fit_polygon_convex(Polygon A, Polygon B){
     scaleClipperPolygons(scaled, 10000000);
     ClipperLib::MinkowskiDiff(scaled[0], scaled[1], p);
 //    ClipperLib::MinkowskiDiff(p1, p2, p);
-    nfp = ClipperPath_to_Slic3rMultiPoint<Polygon>(p[0]);
+    double max_area = -1;
+    for(int i=0; i<p.size();++i) {
+        Polygon temp = ClipperPath_to_Slic3rMultiPoint<Polygon>(p[i]);
+        if(temp.area() > max_area){
+            nfp = temp;
+            max_area = temp.area();
+        }
+    }
     nfp.scale(1.0/10000000);
     nfp.translate(-offset.x, -offset.y);
     nfp.scale(-1);

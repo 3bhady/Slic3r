@@ -371,10 +371,22 @@ Model::arrange_objects(coordf_t dist, const BoundingBoxf* bb)
                 std::cout<<"no NFP found\n";
                 continue;
             }
-//            modelObjectPtrs[i]->offset = modelObjectPtrs[i]->offset + Pointf(result.points[0].x/modelObjectPtrs[i]->scaling_factor, result.points[0].y/modelObjectPtrs[i]->scaling_factor);
-                    //->translate(Pointf3(result.poi/nts[0].x, result.points[0].y, 0));
-                    modelObjectPtrs[i]->offset.translate(result.points[0].x, result.points[0].y);
+//            for(auto & point : result.points) {
+//
+//                Pointf offset(point.x, point.y);
+//                    B->hull.translate(offset.x, offset.y);
+//                for(size_t lines_indx =0; lines_indx<A->hull.lines().size(); ++lines_indx){
+//                    auto* intersection_point = new Point();
+//                    if (B->hull.intersection(A->hull.lines()[lines_indx], intersection_point)) {
+//                        B->hull.translate(-offset.x, -offset.y);
+//                    } else {
+//                        modelObjectPtrs[i]->offset.translate(offset.x, offset.y);
+//                        break;
+//                    }
+//                }
+//            }
             B->hull.translate(result.points[0].x, result.points[0].y);
+            modelObjectPtrs[i]->offset.translate(result.points[0].x, result.points[0].y);
 
             A->merge(B->hull.points);
             A->update_hull();
