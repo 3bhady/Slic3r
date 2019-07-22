@@ -274,34 +274,6 @@ Model::raw_mesh() const
 bool
 Model::_arrange(const Pointfs &sizes, coordf_t dist, const BoundingBoxf* bb, Pointfs &out) const
 {
-    // we supply unscaled data to arrange()
-    bool result = Slic3r::Geometry::arrange(
-        sizes.size(),               // number of parts
-        BoundingBoxf(sizes).max,    // width and height of a single cell
-        dist,                       // distance between cells
-        bb,                         // bounding box of the area to fill
-        out                         // output positions
-    );
-    
-    if (!result && bb != NULL) {
-        // Try to arrange again ignoring bb
-        result = Slic3r::Geometry::arrange(
-            sizes.size(),               // number of parts
-            BoundingBoxf(sizes).max,    // width and height of a single cell
-            dist,                       // distance between cells
-            NULL,                         // bounding box of the area to fill
-            out                         // output positions
-        );
-    }
-    
-    return result;
-}
-
-/*  arrange objects preserving their instance count
-    but altering their instance positions */
-bool
-Model::arrange_objects(coordf_t dist, const BoundingBoxf* bb)
-{
     std::vector<BoundingHull> shapes;
     ModelObjectPtrs modelObjectPtrs;
     for(ModelObject* o : this->objects){
@@ -341,6 +313,77 @@ Model::arrange_objects(coordf_t dist, const BoundingBoxf* bb)
         std::cout<<"finished NFP"<<std::endl;
         return true;
     }
+//    return true;
+    // we supply unscaled data to arrange()
+    bool result = Slic3r::Geometry::arrange(
+        sizes.size(),               // number of parts
+        BoundingBoxf(sizes).max,    // width and height of a single cell
+        dist,                       // distance between cells
+        bb,                         // bounding box of the area to fill
+        out                         // output positions
+    );
+    
+    if (!result && bb != NULL) {
+        // Try to arrange again ignoring bb
+        result = Slic3r::Geometry::arrange(
+            sizes.size(),               // number of parts
+            BoundingBoxf(sizes).max,    // width and height of a single cell
+            dist,                       // distance between cells
+            NULL,                         // bounding box of the area to fill
+            out                         // output positions
+        );
+    }
+    
+    return result;
+}
+
+/*  arrange objects preserving their instance count
+    but altering their instance positions */
+bool
+Model::arrange_objects(coordf_t dist, const BoundingBoxf* bb)
+{
+    std::vector<BoundingHull> shapes;
+    ModelInstancePtrs modelObjectPtrs;
+    for(ModelObject* o : this->objects){
+        for(size_t i = 0; i< o->instances.size(); ++i){
+            // TODO: increase each shape's size so that we could keep a minimum distance between objects
+            // call offset function.
+            shapes.push_back(o->instance_bounding_hull(i));
+            modelObjectPtrs.push_back(o->instances[i]);
+        }
+    }
+
+
+    if(shapes.size()>=2){
+        std::cout<<"try NFP"<<std::endl;
+        BoundingHull* A, *B;
+//        Polygon B;
+
+
+        // TODO: find a proper placement for the first shape by calling no_fit_polygon() on it and the print bed
+
+        A = &shapes[0];
+
+        for(size_t i = 1;i< shapes.size(); ++i ){
+            B = &shapes[i];
+            Polygon result = Geometry::no_fit_polygon_convex(A->hull , B->hull);
+            if(result.points.empty()){
+                std::cout<<"no NFP found\n";
+                continue;
+            }
+//            modelObjectPtrs[i]->offset = modelObjectPtrs[i]->offset + Pointf(result.points[0].x/modelObjectPtrs[i]->scaling_factor, result.points[0].y/modelObjectPtrs[i]->scaling_factor);
+                    //->translate(Pointf3(result.poi/nts[0].x, result.points[0].y, 0));
+                    modelObjectPtrs[i]->offset.translate(result.points[0].x, result.points[0].y);
+            B->hull.translate(result.points[0].x, result.points[0].y);
+
+            A->merge(B->hull.points);
+            A->update_hull();
+        }
+//        Polygon result = Geometry::no_fit_polygon_convex(A , B);
+        std::cout<<"finished NFP"<<std::endl;
+        return true;
+    }
+    return false;
     // get the (transformed) size of each instance so that we take
     // into account their different transformations when packing
     Pointfs instance_sizes;

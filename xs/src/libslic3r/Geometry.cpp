@@ -527,6 +527,7 @@ class ArrangeItemIndex {
 bool
 arrange(size_t total_parts, const Pointf &part_size, coordf_t dist, const BoundingBoxf* bb, Pointfs &positions)
 {
+    return true;
     positions.clear();
 
     Pointf part = part_size;
@@ -1175,16 +1176,44 @@ Polygon no_fit_polygon_convex(Polygon A, Polygon B){
     if(A.points.size()<3 || B.points.size()<3 ) {
         return nfp;
     }
+
+    // First we get A's bottom point
+    Point min_a(A.points[0]);
+    int min_a_index = 0;
+    for(int i = 1;i<A.points.size();++i){
+        if(min_a.y<A.points[i].y){
+            min_a = A.points[i];
+            min_a_index=i;
+        }
+    }
+    // Now we get B's Top point
+    Point max_b(B.points[0]);
+    int max_b_index = 0;
+    for(int i = 1;i<B.points.size();++i){
+        if(max_b.y>B.points[i].y){
+            max_b = B.points[i];
+            max_b_index=i;
+        }
+    }
+    // This offset will be added to every point in B to translate it to A's bottom point.
+    // Point offset(min_a - max_b);
+    Point offset = min_a-max_b;
+
+    B.translate(offset);
     ClipperLib::Paths p;
     ClipperLib::Paths scaled;
     ClipperLib::Path p1 = Slic3rMultiPoint_to_ClipperPath(A);
+//    B.scale(-1);
     ClipperLib::Path p2 = Slic3rMultiPoint_to_ClipperPath(B);
     scaled.push_back(p1);
     scaled.push_back(p2);
     scaleClipperPolygons(scaled, 10000000);
     ClipperLib::MinkowskiDiff(scaled[0], scaled[1], p);
+//    ClipperLib::MinkowskiDiff(p1, p2, p);
     nfp = ClipperPath_to_Slic3rMultiPoint<Polygon>(p[0]);
     nfp.scale(1.0/10000000);
+    nfp.translate(-offset.x, -offset.y);
+    nfp.scale(-1);
 //    for(int i = 0; i < nfp.points.size(); ++i){
 //        nfp.points[i] = nfp.points[i] + B[0];
 //    }
