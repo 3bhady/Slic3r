@@ -18,7 +18,7 @@ SimplePrint::set_model(const Model &model) {
     // make sure all objects have at least one defined instance
     if (this->_model.add_default_instances() && this->arrange) {
         // if we added at least one default instance, we need to rearrange
-        const BoundingBoxf bb{ this->_print.config.bed_shape.values };
+        const Polygon bb{ scale(this->_print.config.bed_shape.values) };
         this->_model.arrange_objects(this->_print.config.min_object_distance(), &bb);
     }
     

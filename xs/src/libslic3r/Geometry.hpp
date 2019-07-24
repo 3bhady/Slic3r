@@ -24,11 +24,15 @@ Polygon convex_hull(const Polygons &polygons);
 // B is the orbiting polygon
 Polygon no_fit_polygon(Polygon A, Polygon B);
 
+
+Polygon inner_fit_polygon(Polygon A, Polygon B);
+
+
 // For convex shapes only
 // Returns a NFP for the two polygons A and B
 // A is the stationary polygon and
 // B is the orbiting polygon
-Polygon no_fit_polygon_convex(Polygon A, Polygon B);
+Polygon no_fit_polygon_convex(Polygon A, Polygon B, bool inside = false);
 
 // Returns true if the two arguments are almost equal with tolerance due to floating point accuracy
 bool almost_equal(Point a, Point b, double tolerance=10e-8);

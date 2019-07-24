@@ -1164,13 +1164,45 @@ Polygon polygonOffset(const Polygon& A, double offset){
     return ClipperPath_to_Slic3rMultiPoint<Polygon>(new_paths[0]);
 
 }
-Polygon no_fit_polygon_convex(Polygon A, Polygon B){
+Polygon inner_fit_polygon(Polygon A, Polygon B){
     Polygon nfp;
     if(A.points.size()<3 || B.points.size()<3 ) {
         return nfp;
     }
     A.make_counter_clockwise();
     B.make_clockwise();
+    ClipperLib::Paths solutions;
+    ClipperLib::Paths neg_b;
+    neg_b.push_back(Slic3rMultiPoint_to_ClipperPath(B));
+    scaleClipperPolygons(neg_b, 1000000);
+    ClipperLib::Paths scaled;
+    scaled.push_back(Slic3rMultiPoint_to_ClipperPath(A));
+    scaleClipperPolygons(scaled, 1000000);
+
+//    scaleClipperPolygons(neg_b, -1);
+    ClipperLib::MinkowskiDiff(scaled[0], neg_b[0], solutions);
+    scaleClipperPolygons(solutions, 1.0/1000000);
+
+    nfp = ClipperPath_to_Slic3rMultiPoint<Polygon>(solutions[0]);
+    double min_area = nfp.area();
+    for(const auto & i : solutions) {
+        Polygon temp = ClipperPath_to_Slic3rMultiPoint<Polygon>(i);
+        if(temp.area() < min_area){
+            nfp = temp;
+            min_area = temp.area();
+        }
+    }
+//    nfp.scale(-1);
+    return nfp;
+}
+Polygon no_fit_polygon_convex(Polygon A, Polygon B, bool inside){
+    Polygon nfp;
+    if(A.points.size()<3 || B.points.size()<3 ) {
+        return nfp;
+    }
+    A.make_counter_clockwise();
+    B.make_clockwise();
+
     // First we get A's bottom point
     Point min_a(A.points[0]);
     for(int i = 1;i<A.points.size();++i){
@@ -1190,30 +1222,37 @@ Polygon no_fit_polygon_convex(Polygon A, Polygon B){
     Point offset = min_a-max_b;
 
     B.translate(offset);
+
     ClipperLib::Paths p;
     ClipperLib::Paths scaled;
     ClipperLib::Path p1 = Slic3rMultiPoint_to_ClipperPath(A);
-//    B.scale(-1);
     ClipperLib::Path p2 = Slic3rMultiPoint_to_ClipperPath(B);
     scaled.push_back(p1);
     scaled.push_back(p2);
     scaleClipperPolygons(scaled, 10000000);
-    ClipperLib::MinkowskiDiff(scaled[0], scaled[1], p);
-//    ClipperLib::MinkowskiDiff(p1, p2, p);
+//    if(inside){
+//        ClipperLib::Paths neg_scaled;
+//        neg_scaled.push_back(p2);
+//        scaleClipperPolygons(neg_scaled, -1);
+//        ClipperLib::MinkowskiSum(scaled[0],neg_scaled[0],p, true);
+//    }else {
+        ClipperLib::MinkowskiDiff(scaled[0], scaled[1], p);
+//    }
     double max_area = -1;
-    for(int i=0; i<p.size();++i) {
-        Polygon temp = ClipperPath_to_Slic3rMultiPoint<Polygon>(p[i]);
+    for(const auto & i : p) {
+        Polygon temp = ClipperPath_to_Slic3rMultiPoint<Polygon>(i);
         if(temp.area() > max_area){
             nfp = temp;
             max_area = temp.area();
         }
     }
+//    if(inside){
+////        B.translate(-offset.x, -offset.y);
+//        nfp.translate(B.points[0]);
+//    }
     nfp.scale(1.0/10000000);
     nfp.translate(-offset.x, -offset.y);
     nfp.scale(-1);
-//    for(int i = 0; i < nfp.points.size(); ++i){
-//        nfp.points[i] = nfp.points[i] + B[0];
-//    }
     return nfp;
 }
 bool within_distance(Point p1, Point p2, double distance) {

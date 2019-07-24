@@ -279,8 +279,8 @@ void BoundingHull::merge(std::vector<Pointf> points){
     this->original_points.insert(this->original_points.end(), points.begin(), points.end());
 }
 void BoundingHull::merge(std::vector<Point> points){
-    for(int i=0;i<points.size();++i){
-        this->original_points.push_back(Pointf(points[i].x,points[i].y));
+    for(auto & point : points){
+        this->original_points.emplace_back(point.x,point.y);
     }
 }
 void BoundingHull::merge(BoundingHull bh){
@@ -288,8 +288,8 @@ void BoundingHull::merge(BoundingHull bh){
 }
 void BoundingHull::update_hull() {
     Points points;
-    for(int i = 0; i< this->original_points.size(); i++){
-        points.push_back(Point(ceil(this->original_points[i].x),ceil(this->original_points[i].y)));
+    for(auto & original_point : this->original_points){
+        points.push_back(Point(ceil(original_point.x),ceil(original_point.y)));
     }
     this->hull = Slic3r::Geometry::convex_hull(points);
 }

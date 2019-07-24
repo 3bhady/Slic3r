@@ -272,7 +272,7 @@ Model::raw_mesh() const
 }
 
 bool
-Model::_arrange(const Pointfs &sizes, coordf_t dist, const BoundingBoxf* bb, Pointfs &out) const
+Model::_arrange(const Pointfs &sizes, coordf_t dist, const Polygon* bb, Pointfs &out) const
 {
     std::vector<BoundingHull> shapes;
     ModelObjectPtrs modelObjectPtrs;
@@ -313,34 +313,34 @@ Model::_arrange(const Pointfs &sizes, coordf_t dist, const BoundingBoxf* bb, Poi
         std::cout<<"finished NFP"<<std::endl;
         return true;
     }
-//    return true;
+    return true;
     // we supply unscaled data to arrange()
-    bool result = Slic3r::Geometry::arrange(
-        sizes.size(),               // number of parts
-        BoundingBoxf(sizes).max,    // width and height of a single cell
-        dist,                       // distance between cells
-        bb,                         // bounding box of the area to fill
-        out                         // output positions
-    );
-    
-    if (!result && bb != NULL) {
-        // Try to arrange again ignoring bb
-        result = Slic3r::Geometry::arrange(
-            sizes.size(),               // number of parts
-            BoundingBoxf(sizes).max,    // width and height of a single cell
-            dist,                       // distance between cells
-            NULL,                         // bounding box of the area to fill
-            out                         // output positions
-        );
-    }
-    
-    return result;
+//    bool result = Slic3r::Geometry::arrange(
+//        sizes.size(),               // number of parts
+//        BoundingBoxf(sizes).max,    // width and height of a single cell
+//        dist,                       // distance between cells
+//        bb,                         // bounding box of the area to fill
+//        out                         // output positions
+//    );
+//
+//    if (!result && bb != NULL) {
+//        // Try to arrange again ignoring bb
+//        result = Slic3r::Geometry::arrange(
+//            sizes.size(),               // number of parts
+//            BoundingBoxf(sizes).max,    // width and height of a single cell
+//            dist,                       // distance between cells
+//            NULL,                         // bounding box of the area to fill
+//            out                         // output positions
+//        );
+//    }
+//
+//    return result;
 }
 
 /*  arrange objects preserving their instance count
     but altering their instance positions */
 bool
-Model::arrange_objects(coordf_t dist, const BoundingBoxf* bb)
+Model::arrange_objects(coordf_t dist, const Polygon* bed)
 {
     std::vector<BoundingHull> shapes;
     ModelInstancePtrs modelObjectPtrs;
@@ -363,7 +363,22 @@ Model::arrange_objects(coordf_t dist, const BoundingBoxf* bb)
         // TODO: find a proper placement for the first shape by calling no_fit_polygon() on it and the print bed
 
         A = &shapes[0];
-
+        if(bed != nullptr){
+//            unscale()
+            Polygon print_bed(*bed);
+            for(auto & point : print_bed.points){
+//                for (const auto& p : in) {out.push_back(Point(scale_(p.x), scale_(p.y))); }
+                point = Point(unscale(point.x),unscale(point.y));
+            }
+            Polygon result = Geometry::inner_fit_polygon(print_bed, A->hull );
+//            A->hull.translate(result.points[0].x, result.points[0].y);
+            for(auto & original_point : A->original_points){
+                original_point.translate(result.points[0].x, result.points[0].y);
+            }
+            modelObjectPtrs[0]->offset.translate(result.points[0].x, result.points[0].y);
+            A->update_hull();
+//            A = new BoundingHull(modelObjectPtrs[0]->transform_mesh_bounding_hull())
+        }
         for(size_t i = 1;i< shapes.size(); ++i ){
             B = &shapes[i];
             Polygon result = Geometry::no_fit_polygon_convex(A->hull , B->hull);
@@ -371,22 +386,23 @@ Model::arrange_objects(coordf_t dist, const BoundingBoxf* bb)
                 std::cout<<"no NFP found\n";
                 continue;
             }
-//            for(auto & point : result.points) {
-//
-//                Pointf offset(point.x, point.y);
-//                    B->hull.translate(offset.x, offset.y);
-//                for(size_t lines_indx =0; lines_indx<A->hull.lines().size(); ++lines_indx){
-//                    auto* intersection_point = new Point();
-//                    if (B->hull.intersection(A->hull.lines()[lines_indx], intersection_point)) {
-//                        B->hull.translate(-offset.x, -offset.y);
-//                    } else {
-//                        modelObjectPtrs[i]->offset.translate(offset.x, offset.y);
-//                        break;
-//                    }
-//                }
-//            }
+/*            for(auto & point : result.points) {
+
+                Pointf offset(point.x, point.y);
+                    B->hull.translate(offset.x, offset.y);
+                for(size_t lines_indx =0; lines_indx<A->hull.lines().size(); ++lines_indx){
+                    auto* intersection_point = new Point();
+                    if (B->hull.intersection(A->hull.lines()[lines_indx], intersection_point)) {
+                        B->hull.translate(-offset.x, -offset.y);
+                    } else {
+                        modelObjectPtrs[i]->offset.translate(offset.x, offset.y);
+                        break;
+                    }
+                }
+            }*/
             B->hull.translate(result.points[0].x, result.points[0].y);
             modelObjectPtrs[i]->offset.translate(result.points[0].x, result.points[0].y);
+//            modelObjectPtrs[i]->offset.translate(50, 50);
 
             A->merge(B->hull.points);
             A->update_hull();
@@ -398,28 +414,28 @@ Model::arrange_objects(coordf_t dist, const BoundingBoxf* bb)
     return false;
     // get the (transformed) size of each instance so that we take
     // into account their different transformations when packing
-    Pointfs instance_sizes;
-    for (const ModelObject* o : this->objects)
-        for (size_t i = 0; i < o->instances.size(); ++i)
-            instance_sizes.push_back(o->instance_bounding_box(i).size());
-    
-    Pointfs positions;
-    if (! this->_arrange(instance_sizes, dist, bb, positions))
-        return false;
-
-    for (ModelObjectPtrs::const_iterator o = this->objects.begin(); o != this->objects.end(); ++o) {
-        for (ModelInstancePtrs::const_iterator i = (*o)->instances.begin(); i != (*o)->instances.end(); ++i) {
-            (*i)->offset = positions.back();
-            positions.pop_back();
-        }
-        (*o)->invalidate_bounding_box();
-    }
-    return true;
+//    Pointfs instance_sizes;
+//    for (const ModelObject* o : this->objects)
+//        for (size_t i = 0; i < o->instances.size(); ++i)
+//            instance_sizes.push_back(o->instance_bounding_box(i).size());
+//
+//    Pointfs positions;
+//    if (! this->_arrange(instance_sizes, dist, bb, positions))
+//        return false;
+//
+//    for (ModelObjectPtrs::const_iterator o = this->objects.begin(); o != this->objects.end(); ++o) {
+//        for (ModelInstancePtrs::const_iterator i = (*o)->instances.begin(); i != (*o)->instances.end(); ++i) {
+//            (*i)->offset = positions.back();
+//            positions.pop_back();
+//        }
+//        (*o)->invalidate_bounding_box();
+//    }
+//    return true;
 }
 
 /*  duplicate the entire model preserving instance relative positions */
 void
-Model::duplicate(size_t copies_num, coordf_t dist, const BoundingBoxf* bb)
+Model::duplicate(size_t copies_num, coordf_t dist, const Polygon* bb)
 {
     Pointfs model_sizes(copies_num-1, this->bounding_box().size());
     Pointfs positions;
@@ -444,7 +460,7 @@ Model::duplicate(size_t copies_num, coordf_t dist, const BoundingBoxf* bb)
 /*  this will append more instances to each object
     and then automatically rearrange everything */
 void
-Model::duplicate_objects(size_t copies_num, coordf_t dist, const BoundingBoxf* bb)
+Model::duplicate_objects(size_t copies_num, coordf_t dist, const Polygon* bb)
 {
     for (ModelObject* o : this->objects) {
         // make a copy of the pointers in order to avoid recursion when appending their copies

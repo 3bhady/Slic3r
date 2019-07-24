@@ -171,20 +171,20 @@ class Model
     /// \param bb BoundingBoxf* (optional) pointer to the bounding box of the area to fill
     /// \param out Pointfs& vector of the output positions
     /// \return bool whether the function finished arranging objects or it is impossible to arrange
-    bool _arrange(const Pointfs &sizes, coordf_t dist, const BoundingBoxf* bb, Pointfs &out) const;
+    bool _arrange(const Pointfs &sizes, coordf_t dist, const Polygon* bb, Pointfs &out) const;
 
     /// Arrange ModelObjects preserving their ModelInstance count but altering their ModelInstance positions.
     /// \param dist coordf_t distance between cells
     /// \param bb BoundingBoxf* (optional) pointer to the bounding box of the area to fill
     /// \return bool whether the function finished arranging objects or it is impossible to arrange
-    bool arrange_objects(coordf_t dist, const BoundingBoxf* bb = NULL);
+    bool arrange_objects(coordf_t dist, const Polygon* bed = NULL);
 
     /// Duplicate the ModelInstances of each ModelObject as a whole preserving their relative positions.
     /// This function croaks if the duplicated objects do not fit the print bed.
     /// \param copies_num size_t number of copies
     /// \param dist coordf_t distance between cells
     /// \param bb BoundingBoxf* (optional) pointer to the bounding box of the area to fill
-    void duplicate(size_t copies_num, coordf_t dist, const BoundingBoxf* bb = NULL);
+    void duplicate(size_t copies_num, coordf_t dist, const Polygon* bb = NULL);
 
     /// Duplicate each entire ModelInstances of the each ModelObject as a whole.
     /// This function will append more instances to each object
@@ -192,7 +192,7 @@ class Model
     /// \param copies_num size_t number of copies
     /// \param dist coordf_t distance between cells
     /// \param bb BoundingBoxf* (optional) pointer to the bounding box of the area to fill
-    void duplicate_objects(size_t copies_num, coordf_t dist, const BoundingBoxf* bb = NULL);
+    void duplicate_objects(size_t copies_num, coordf_t dist, const Polygon* bb = NULL);
 
 
     /// Duplicate a single ModelObject and arranges them on a grid.
